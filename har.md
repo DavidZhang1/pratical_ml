@@ -62,13 +62,7 @@ For all the numeric variables, we try to find correlations amoung them
 with correlation matrix, and remove the highly correlated ones.
 
     library(corrplot)
-
-    ## Warning: package 'corrplot' was built under R version 3.3.1
-
     library(caret)
-
-    ## Warning: package 'caret' was built under R version 3.3.1
-
     corMatrix <- cor(na.omit(trainSet.dena.dere[sapply(trainSet.dena.dere, is.numeric)]))
     corrplot(corMatrix, order = "FPC", method = "color", type = "lower", tl.cex = 0.8, tl.col = rgb(0, 0, 0))
 
@@ -134,8 +128,6 @@ We train a radom forest model.
 
     fit <- train(trainSet.final$classe ~ ., method = "rf", data = trainSet.pc, trControl = trainControl(method = "cv", number = 4), importance = TRUE)
 
-    ## Warning: package 'randomForest' was built under R version 3.3.1
-
 Let's check the important variables.
 
     library(randomForest)
@@ -156,18 +148,18 @@ accuracy and error rate.
 
     ##           Reference
     ## Prediction    A    B    C    D    E
-    ##          A 1669    1    3    1    0
-    ##          B   30 1102    5    0    2
-    ##          C    3   16  996   10    1
-    ##          D    2    4   47  911    0
-    ##          E    0    1    6    4 1071
+    ##          A 1672    0    0    1    1
+    ##          B   23 1104    8    0    4
+    ##          C    2   16 1001    7    0
+    ##          D    0    1   43  919    1
+    ##          E    0    0    8    9 1065
 
     accuracy <- unname(matrix$overall[1]) * 100
     errorRate <- 100 - unname(accuracy)
     c(accuracy = accuracy, error_rate = errorRate)
 
     ##   accuracy error_rate 
-    ##   97.68904    2.31096
+    ##  97.892948   2.107052
 
 Conclusion
 ==========
