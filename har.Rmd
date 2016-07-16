@@ -1,0 +1,124 @@
+---
+title: "Barbell Classification - Human Activity Recognition"
+author: "David Zhang"
+date: "July 10, 2016"
+output: 
+    html_document
+---
+```{r, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, 
+                      fig.height=8, 
+                      fig.path='figures/', 
+                      echo=TRUE, 
+                      message=FALSE) 
+```
+
+# Overview
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks.
+
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this data set, the participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants toto predict the manner in which praticipants did the exercise.
+
+The dependent variable or response is the "classe" variable in the training set.
+
+# Input
+
+Download and load data.
+
+```{r load-data, cache = TRUE}
+urls <- file.path("http://d396qusza40orc.cloudfront.net/predmachlearn", 
+                  c("pml-training.csv", "pml-testing.csv"))
+trainSet <- read.csv(urls[1], na.strings=c("", "NA", "NULL"))
+testSet  <- read.csv(urls[2], na.strings=c("", "NA", "NULL"))
+rbind(dim(trainSet) , dim(testSet))
+```
+
+# Data Cleaning
+
+There are a lot of columns are absolutely value-missing. Remove the colums.
+
+```{r cleaning}
+trainSet.dena <- trainSet[, colSums(is.na(trainSet)) == 0]
+dim(trainSet.dena)
+unrelatedColumns <- c('X', 'user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window')
+trainSet.dena.dere <- trainSet.dena[, -which(names(trainSet.dena) %in% unrelatedColumns)]
+testSet.dena <- testSet[, colSums(is.na(trainSet)) == 0]
+testSet.dena.dere <- testSet.dena[, -which(names(trainSet.dena) %in% unrelatedColumns)]
+rbind(dim(trainSet.dena.dere) , dim(testSet.dena.dere))
+```
+
+For all the numeric variables, we try to find correlations amoung them with correlation matrix, and remove the highly correlated ones.
+
+```{r correlation}
+library(corrplot)
+library(caret)
+corMatrix <- cor(na.omit(trainSet.dena.dere[sapply(trainSet.dena.dere, is.numeric)]))
+corrplot(corMatrix, order = "FPC", method = "color", type = "lower", tl.cex = 0.8, tl.col = rgb(0, 0, 0))
+
+corRemover <- findCorrelation(corMatrix, cutoff = .90, verbose = TRUE)
+trainSet.dena.dere.decor <- trainSet.dena.dere[,-corRemover]
+testSet.dena.dere.decor <- testSet.dena.dere[,-corRemover]
+rbind(dim(trainSet.dena.dere.decor), dim(testSet.dena.dere.decor))
+
+```
+
+# Data Partitioning
+
+We split train data into two sets, one for training, one for testing.
+
+```{r split-validation-from-train}
+library(caret)
+trainSet.indexes <- createDataPartition(y = trainSet.dena.dere.decor$classe, 
+                                        p = 0.7, 
+                                        list = FALSE)
+trainSet.final       <- trainSet.dena.dere.decor[trainSet.indexes,]
+validationSet.final  <- trainSet.dena.dere.decor[-trainSet.indexes,]
+rbind(dim(trainSet.final), dim(validationSet.final), dim(testSet.dena.dere.decor))
+```
+
+Preprocess with principal component analysis (PCA). We leave important predictors by calling predict with preprocessing object. 46th column is the response.
+
+```{r preprocessing}
+set.seed(1)
+trainProcess <- preProcess(trainSet.final[, -46], method = "pca", thresh = 0.99)
+trainSet.pc <- predict(trainProcess, trainSet.final[, -46])
+validationSet.pc <- predict(trainProcess, validationSet.final[, -46])
+```
+
+# Training
+
+We train a radom forest model.
+
+```{r trainging, cache = TRUE}
+fit <- train(trainSet.final$classe ~ ., method = "rf", data = trainSet.pc, trControl = trainControl(method = "cv", number = 4), importance = TRUE)
+```
+
+Let's check the important variables.
+
+```{r improtant-variables}
+library(randomForest)
+varImpPlot(fit$finalModel, sort = TRUE, type = 1, pch = 19, col = 1, cex = 1, main = "Importance of the Individual Principal Components")
+```
+
+# Assessment
+
+As we are using radom forest, there is no need to do parameter tuning. Here, we test the model with final radom forest model and calculate the accuracy and error rate.
+
+```{r cross-validation}
+validationSet.prediction <- predict(fit, validationSet.pc)
+matrix <- confusionMatrix(validationSet.final$classe, validationSet.prediction)
+matrix$table
+accuracy <- unname(matrix$overall[1]) * 100
+errorRate <- 100 - unname(accuracy)
+c(accuracy = accuracy, error_rate = errorRate)
+```
+
+# Conclusion
+
+```{r prediction}
+testSet.pc <- predict(trainProcess, testSet.dena.dere.decor[, -46])
+answers <- predict(fit, testSet.pc)
+answers
+```
